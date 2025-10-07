@@ -5,6 +5,7 @@ from openpyxl import load_workbook
 import os
 from werkzeug.utils import secure_filename
 import tempfile
+import datetime
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -13,9 +14,17 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
     """
     Generate a purchase request for a specific supplier with product image formulas.
     """
-    # Normalize column names
+    # Normalize column names - handle datetime columns
     df_work = df.copy()
-    df_work.columns = [str(c).strip().lower() for c in df_work.columns]
+    
+    # Convert datetime columns to MM-YY format strings
+    new_cols = []
+    for c in df_work.columns:
+        if isinstance(c, (datetime.datetime, pd.Timestamp)):
+            new_cols.append(c.strftime('%m-%y').lower())
+        else:
+            new_cols.append(str(c).strip().lower())
+    df_work.columns = new_cols
     
     # Identify month columns (exclude known non-month columns)
     non_month_cols = set(['products', 'current stock', 'supplier', 'lc'])
@@ -80,7 +89,7 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
 def home():
     return jsonify({
         'service': 'Shaghlaty Purchase Request API',
-        'version': '1.1',
+        'version': '1.2',
         'endpoints': {
             '/generate_purchase_request': {
                 'method': 'POST',
@@ -89,7 +98,7 @@ def home():
                     'file': 'Excel file (multipart/form-data)',
                     'supplier_name': 'Name of supplier (form field)',
                     'months_of_cover': 'Number of months to cover (form field, integer)',
-                    'months_to_average': 'Optional: comma-separated month columns to average (form field)'
+                    'months_to_average': 'Optional: comma-separated month columns in MM-YY format (e.g., 05-25,06-25)'
                 },
                 'returns': 'Excel file download with LC in USD and LC in IQD columns (if LC column present in input)'
             }
