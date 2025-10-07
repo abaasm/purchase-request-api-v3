@@ -18,7 +18,7 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
     df_work.columns = [str(c).strip().lower() for c in df_work.columns]
     
     # Identify month columns (exclude known non-month columns)
-    non_month_cols = set(['products', 'current stock', 'supplier'])
+    non_month_cols = set(['products', 'current stock', 'supplier', 'lc'])
     all_month_cols = [c for c in df_work.columns if c not in non_month_cols]
     
     # If specific months specified, use those; otherwise use all month columns
@@ -32,6 +32,10 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
         if c in df_work.columns:
             df_work[c] = pd.to_numeric(df_work[c], errors='coerce')
     df_work['current stock'] = pd.to_numeric(df_work['current stock'], errors='coerce')
+    
+    # Handle LC column if present
+    if 'lc' in df_work.columns:
+        df_work['lc'] = pd.to_numeric(df_work['lc'], errors='coerce')
     
     # Compute average monthly sales over specified months
     df_work['avg_monthly_sales'] = df_work[months_to_use].mean(axis=1, skipna=True)
@@ -52,8 +56,15 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
         lambda x: '=IMAGE("https://ecomedia.shaghlaty.net/media/catalog/' + str(x) + '.jpg")'
     )
     
-    # Select output columns
+    # Select output columns - include LC columns if present
     out_cols = ['products', 'product_image', 'supplier'] + months_to_use + ['avg_monthly_sales', 'current stock', 'target_stock', 'purchase_qty']
+    
+    # Add LC columns if LC exists in the data
+    if 'lc' in req_df.columns:
+        req_df['lc_in_usd'] = req_df['lc']
+        req_df['lc_in_iqd'] = req_df['lc'] * 1550
+        out_cols.extend(['lc_in_usd', 'lc_in_iqd'])
+    
     output = req_df[out_cols].sort_values('purchase_qty', ascending=False)
     
     return output, months_to_use
@@ -62,7 +73,7 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
 def home():
     return jsonify({
         'service': 'Shaghlaty Purchase Request API',
-        'version': '1.0',
+        'version': '1.1',
         'endpoints': {
             '/generate_purchase_request': {
                 'method': 'POST',
@@ -73,7 +84,7 @@ def home():
                     'months_of_cover': 'Number of months to cover (form field, integer)',
                     'months_to_average': 'Optional: comma-separated month columns to average (form field)'
                 },
-                'returns': 'Excel file download'
+                'returns': 'Excel file download with LC in USD and LC in IQD columns (if LC column present in input)'
             }
         }
     })
