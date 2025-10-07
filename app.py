@@ -46,10 +46,17 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
     if len(req_df) == 0:
         return None, months_to_use
     
+    # Fill NaN values with 0 for calculations
+    req_df['avg_monthly_sales'] = req_df['avg_monthly_sales'].fillna(0)
+    req_df['current stock'] = req_df['current stock'].fillna(0)
+    
     # Compute required quantity
     req_df['target_stock'] = req_df['avg_monthly_sales'] * months_of_cover
     req_df['shortfall'] = req_df['target_stock'] - req_df['current stock']
-    req_df['purchase_qty'] = np.where(req_df['shortfall'] > 0, np.ceil(req_df['shortfall']).astype(int), 0)
+    
+    # Handle NaN and inf before converting to int
+    req_df['shortfall'] = req_df['shortfall'].replace([np.inf, -np.inf], 0).fillna(0)
+    req_df['purchase_qty'] = np.where(req_df['shortfall'] > 0, np.ceil(req_df['shortfall']), 0).astype(int)
     
     # Add image formulas
     req_df['product_image'] = req_df['products'].apply(
@@ -61,8 +68,8 @@ def generate_purchase_request(df, supplier_name, months_of_cover, months_to_aver
     
     # Add LC columns if LC exists in the data
     if 'lc' in req_df.columns:
-        req_df['lc_in_usd'] = req_df['lc']
-        req_df['lc_in_iqd'] = req_df['lc'] * 1550
+        req_df['lc_in_usd'] = req_df['lc'].fillna(0)
+        req_df['lc_in_iqd'] = req_df['lc'].fillna(0) * 1550
         out_cols.extend(['lc_in_usd', 'lc_in_iqd'])
     
     output = req_df[out_cols].sort_values('purchase_qty', ascending=False)
